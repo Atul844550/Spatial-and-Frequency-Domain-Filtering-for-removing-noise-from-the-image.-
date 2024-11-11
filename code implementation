@@ -1,0 +1,110 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage.metrics import peak_signal_noise_ratio as psnr
+from skimage.metrics import structural_similarity as ssim
+
+# Loading the noisy image
+image = cv2.imread('F:\computer Vision\images\parrot.png', 0)  
+
+# Display the original noisy image
+plt.figure(figsize=(12, 6))
+plt.subplot(2, 3, 1)
+plt.imshow(image, cmap='gray')
+plt.title('Original Noisy Image')
+
+# 1. Spatial Domain Filtering (Median Filter)
+median_filtered_image = cv2.medianBlur(image, 5)
+
+plt.subplot(2, 3, 2)
+plt.imshow(median_filtered_image, cmap='gray')
+plt.title('Median Filtered (Spatial)')
+
+
+# 2. Frequency Domain Filtering (Fourier Transform)
+# Apply Fourier Transform to the image
+dft = cv2.dft(np.float32(image), flags=cv2.DFT_COMPLEX_OUTPUT)
+'''
+np.fft.fftshift() re-centers the frequency components by:
+Moving the low-frequency components to the center of the image.
+Moving the high-frequency components to the edges.
+'''
+dft_shift = np.fft.fftshift(dft)
+
+# Create a mask to filter out high frequencies (i.e., noise)
+rows, cols = image.shape
+crow, ccol = rows // 2, cols // 2
+mask = np.zeros((rows, cols, 2), np.uint8)       # 2 represent the complex no. for the real and imagenery part.
+r = 30  # Radius of the mask to keep low frequencies
+mask[crow-r:crow+r, ccol-r:ccol+r] = 1
+
+# Apply mask and inverse DFT
+fshift = dft_shift * mask
+f_ishift = np.fft.ifftshift(fshift)
+img_back = cv2.idft(f_ishift)
+img_back = cv2.magnitude(img_back[:, :, 0], img_back[:, :, 1])
+
+# Normalize the result
+img_back = cv2.normalize(img_back, None, 0, 255, cv2.NORM_MINMAX)
+img_back = np.uint8(img_back)
+
+plt.subplot(2, 3, 3)
+plt.imshow(img_back, cmap='gray')
+plt.title('Filtered (Frequency Domain)')
+
+# 3. Quantitative Comparison
+
+# Calculate PSNR for both methods
+psnr_median = psnr(image, median_filtered_image)
+psnr_frequency = psnr(image, img_back)
+
+# Calculate SSIM for both methods
+ssim_median, _ = ssim(image, median_filtered_image, full=True)
+ssim_frequency, _ = ssim(image, img_back, full=True)
+
+# Display the results on the images
+
+# Add PSNR and SSIM on the Median Filter image
+plt.subplot(2, 3, 2)
+plt.imshow(median_filtered_image, cmap='gray')
+plt.title(f'Median Filtered (Spatial)\nPSNR: {psnr_median:.2f}, SSIM: {ssim_median:.4f}')
+plt.axis('off')
+
+# Add PSNR and SSIM on the Frequency Filter image
+plt.subplot(2, 3, 3)
+plt.imshow(img_back, cmap='gray')
+plt.title(f'Frequency Domain Filtered\nPSNR: {psnr_frequency:.2f}, SSIM: {ssim_frequency:.4f}')
+plt.axis('off')
+
+# 4. Graphical Comparison
+
+# Data for bar plots
+labels = ['Median Filter', 'Frequency Filter']
+psnr_values = [psnr_median, psnr_frequency]
+ssim_values = [ssim_median, ssim_frequency]
+
+# Create a new figure for the bar charts
+plt.figure(figsize=(10, 5))
+
+# Bar plot for PSNR
+plt.subplot(1, 2, 1)
+plt.bar(labels, psnr_values, color=['blue', 'green'])
+plt.title('PSNR Comparison')
+plt.ylabel('PSNR Value')
+
+# Bar plot for SSIM
+plt.subplot(1, 2, 2)
+plt.bar(labels, ssim_values, color=['blue', 'green'])
+plt.title('SSIM Comparison')
+plt.ylabel('SSIM Value')
+
+# Display the bar charts
+plt.tight_layout()
+plt.show()
+
+# Display the quantitative metrics in the console
+print("Quantitative Comparison:")
+print(f"PSNR (Median Filter): {psnr_median:.2f}")
+print(f"PSNR (Frequency Domain Filter): {psnr_frequency:.2f}")
+print(f"SSIM (Median Filter): {ssim_median:.4f}")
+print(f"SSIM (Frequency Domain Filter): {ssim_frequency:.4f}")
